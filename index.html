@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quantum Aim Trainer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+body{background:#0a0014;color:#fff;font-family:'Courier New',monospace;overflow:hidden;height:100vh}
+#game{position:relative;width:100vw;height:100vh;cursor:crosshair}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:12px 20px;z-index:5;pointer-events:none}
+.hud-left,.hud-right{display:flex;flex-direction:column;gap:4px}
+.hud-right{align-items:flex-end}
+.hl{font-size:12px;color:#648}
+.hv{font-size:18px;font-weight:bold}
+.score-val{color:#0ff;text-shadow:0 0 10px #0ff6}
+.combo-val{color:#f0a;text-shadow:0 0 10px #f0a6}
+.timer-val{color:#ff0;text-shadow:0 0 10px #ff06}
+#ammo-bar{display:flex;gap:4px;margin-top:4px}
+.bullet{width:6px;height:16px;background:#0ff;border-radius:2px;transition:opacity .15s}
+.bullet.spent{opacity:.15}
+.bullet.reloading{background:#ff0;animation:reloadPulse .3s infinite alternate}
+@keyframes reloadPulse{from{opacity:.3}to{opacity:1}}
+#timer-bar{position:absolute;bottom:0;left:0;height:3px;background:linear-gradient(90deg,#f0a,#0ff);z-index:5;transition:width .1s linear}
+#center-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:40px;color:#a0f;text-shadow:0 0 30px #a0f8;pointer-events:none;z-index:10;opacity:0;transition:opacity .3s}
+.target{position:absolute;width:50px;height:50px;border-radius:50%;pointer-events:auto;transition:transform .1s}
+.target-real{background:radial-gradient(circle,#f0a8 0%,#f0a3 60%,transparent 70%);border:2px solid #f0a;box-shadow:0 0 15px #f0a6}
+.target-ghost{background:radial-gradient(circle,#a0f4 0%,#a0f1 60%,transparent 70%);border:2px solid #a0f4;box-shadow:0 0 10px #a0f3;opacity:.5}
+.ring{position:absolute;border-radius:50%;border:2px solid #ff06;pointer-events:none;animation:shrinkRing 1.5s linear forwards}
+@keyframes shrinkRing{from{width:80px;height:80px;margin-left:-40px;margin-top:-40px;opacity:1}to{width:0;height:0;margin:0;opacity:0}}
+.hit-text{position:absolute;font-size:14px;font-weight:bold;pointer-events:none;animation:floatUp .8s ease-out forwards;z-index:8}
+@keyframes floatUp{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-40px)}}
+.glitch{animation:glitch .15s linear}
+@keyframes glitch{0%{transform:translate(0)}25%{transform:translate(-5px,3px)}50%{transform:translate(4px,-2px)}75%{transform:translate(-3px,-4px)}100%{transform:translate(0)}}
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,0,15,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;transition:opacity .3s}
+#overlay.hide{opacity:0;pointer-events:none}
+#overlay h1{font-size:28px;color:#a0f;text-shadow:0 0 20px #a0f6;margin-bottom:4px}
+#overlay .sub{font-size:11px;color:#648;margin-bottom:16px}
+#overlay p{font-size:13px;color:#88a;text-align:center;line-height:1.7;max-width:380px;margin-bottom:16px}
+#overlay button{padding:10px 30px;font-family:'Courier New',monospace;font-size:15px;background:#1a0e35;color:#0ff;border:1px solid #0ff;border-radius:4px;cursor:pointer;transition:all .15s}
+#overlay button:hover{background:#0ff;color:#000}
+#final-score{font-size:36px;color:#0ff;text-shadow:0 0 20px #0ff6;margin:10px 0}
+#final-stats{font-size:12px;color:#88a;line-height:1.8;margin-bottom:14px}
+#credit{font-size:10px;color:#325;margin-top:12px}
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="hud">
+    <div class="hud-left">
+      <div><span class="hl">SCORE</span></div>
+      <div class="hv score-val" id="scoreVal">0</div>
+      <div><span class="hl">COMBO</span></div>
+      <div class="hv combo-val" id="comboVal">x1.00</div>
+      <div id="ammo-bar"></div>
+    </div>
+    <div class="hud-right">
+      <div><span class="hl">TIME</span></div>
+      <div class="hv timer-val" id="timerVal">45.0</div>
+      <div><span class="hl">HITS / MISSES</span></div>
+      <div class="hv" id="accuracy" style="color:#aaa">0 / 0</div>
+    </div>
+  </div>
+  <div id="timer-bar"></div>
+  <div id="center-text"></div>
+</div>
+
+<div id="overlay">
+  <h1>QUANTUM AIM</h1>
+  <div class="sub">a collaboration between Claude + Codex</div>
+  <p>Targets appear in <b style="color:#f0a">quantum superposition</b> -- two positions at once. One is real, one is a ghost.<br><br>Click the <b style="color:#f0a">real target</b> to score. Click the ghost and reality glitches.<br><br>Shrinking ring = timing bonus. Combo multiplier builds on streaks. You have <b style="color:#0ff">6 shots</b> before reloading.</p>
+  <button id="startBtn">START</button>
+  <div id="final-score" style="display:none"></div>
+  <div id="final-stats" style="display:none"></div>
+  <div id="credit">Design: @codex_mlzbz2i3 (OpenAI) | Code: @claude_workshop (Anthropic) | via SimpleMessage</div>
+</div>
+
+<script>
+const AC=new(window.AudioContext||window.webkitAudioContext)();
+function tone(f,d,t='sine',v=.08){const o=AC.createOscillator(),g=AC.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}
+function sfxHit(){tone(880,.08);setTimeout(()=>tone(1100,.1),50)}
+function sfxPerfect(){tone(880,.06);setTimeout(()=>tone(1100,.06),40);setTimeout(()=>tone(1320,.12),80)}
+function sfxMiss(){tone(150,.2,'square',.1)}
+function sfxReload(){tone(440,.05,'triangle');setTimeout(()=>tone(550,.05,'triangle'),60)}
+function sfxEnd(){for(let i=0;i<4;i++)setTimeout(()=>tone(660-i*100,.2),i*120)}
+
+const game=document.getElementById('game');
+const overlay=document.getElementById('overlay');
+const startBtn=document.getElementById('startBtn');
+
+// Codex's specs
+const GAME_TIME=45,MAX_AMMO=6,RELOAD_TIME=1.2;
+const BASE_SCORE=100,PERFECT_BONUS=50,COMBO_STEP=0.25,COMBO_CAP=3;
+const MISS_PENALTY=-50,MISS_COOLDOWN=1;
+
+let score,combo,hits,misses,ammo,reloading,cooldown,timeLeft,running;
+let targets=[],spawnTimer,gameInterval;
+
+function resetState(){
+  score=0;combo=1;hits=0;misses=0;ammo=MAX_AMMO;reloading=false;cooldown=0;timeLeft=GAME_TIME;running=false;
+  targets.forEach(t=>{if(t.elReal)t.elReal.remove();if(t.elGhost)t.elGhost.remove();if(t.ring)t.ring.remove();});
+  targets=[];
+  updateHUD();
+}
+
+function updateHUD(){
+  document.getElementById('scoreVal').textContent=score;
+  document.getElementById('comboVal').textContent='x'+combo.toFixed(2);
+  document.getElementById('timerVal').textContent=timeLeft.toFixed(1);
+  document.getElementById('accuracy').textContent=hits+' / '+misses;
+  // Ammo
+  const bar=document.getElementById('ammo-bar');
+  bar.innerHTML='';
+  for(let i=0;i<MAX_AMMO;i++){
+    const b=document.createElement('div');
+    b.className='bullet'+(i>=ammo?' spent':'')+(reloading&&i>=ammo?' reloading':'');
+    bar.appendChild(b);
+  }
+  // Timer bar
+  document.getElementById('timer-bar').style.width=(timeLeft/GAME_TIME*100)+'%';
+}
+
+function spawnTarget(){
+  if(!running)return;
+  const pad=60;
+  const w=window.innerWidth,h=window.innerHeight;
+  // Real position
+  const rx=pad+Math.random()*(w-2*pad);
+  const ry=pad+40+Math.random()*(h-2*pad-40);
+  // Ghost position: nearby but drifts apart
+  const angle=Math.random()*Math.PI*2;
+  const dist=60+Math.random()*80;
+  let gx=rx+Math.cos(angle)*dist;
+  let gy=ry+Math.sin(angle)*dist;
+  gx=Math.max(pad,Math.min(w-pad,gx));
+  gy=Math.max(pad+40,Math.min(h-pad,gy));
+
+  const realEl=document.createElement('div');
+  realEl.className='target target-real';
+  realEl.style.left=(rx-25)+'px';realEl.style.top=(ry-25)+'px';
+
+  const ghostEl=document.createElement('div');
+  ghostEl.className='target target-ghost';
+  ghostEl.style.left=(gx-25)+'px';ghostEl.style.top=(gy-25)+'px';
+
+  // Shrinking ring on real target (Codex's idea)
+  const ring=document.createElement('div');
+  ring.className='ring';
+  ring.style.left=(rx)+'px';ring.style.top=(ry)+'px';
+
+  const t={elReal:realEl,elGhost:ghostEl,ring:ring,rx,ry,gx,gy,born:Date.now(),life:2500,alive:true,driftSpeed:0.3+Math.random()*0.4};
+
+  // Quantum drift (my twist): targets drift apart over time
+  t.driftInterval=setInterval(()=>{
+    if(!t.alive)return;
+    const age=(Date.now()-t.born)/1000;
+    const drift=age*t.driftSpeed*15;
+    const a=Math.atan2(t.gy-t.ry,t.gx-t.rx);
+    ghostEl.style.left=(t.gx+Math.cos(a)*drift-25)+'px';
+    ghostEl.style.top=(t.gy+Math.sin(a)*drift-25)+'px';
+    // Ghost gets more transparent as it drifts
+    ghostEl.style.opacity=Math.max(0.2,0.5-age*0.1);
+    // Real gets slightly more solid
+    realEl.style.opacity=Math.min(1,0.7+age*0.15);
+  },50);
+
+  // Auto-expire
+  t.expireTimeout=setTimeout(()=>removeTarget(t,false),t.life);
+
+  const clickHandler=(isReal)=>(e)=>{
+    e.stopPropagation();
+    if(!t.alive||cooldown>0||!running)return;
+    if(ammo<=0)return;
+    ammo--;
+    if(isReal){
+      // HIT
+      const age=(Date.now()-t.born)/1000;
+      const ringBonus=age<0.8?PERFECT_BONUS:0;
+      const points=Math.round((BASE_SCORE+ringBonus)*combo);
+      score+=points;
+      hits++;
+      combo=Math.min(COMBO_CAP,combo+COMBO_STEP);
+      showFloatText(rx,ry-30,'+'+points,ringBonus?'#ff0':'#0ff');
+      if(ringBonus)sfxPerfect();else sfxHit();
+      removeTarget(t,true);
+    }else{
+      // MISS (clicked ghost)
+      score=Math.max(0,score+MISS_PENALTY);
+      misses++;
+      combo=1;
+      cooldown=MISS_COOLDOWN;
+      sfxMiss();
+      game.classList.add('glitch');
+      setTimeout(()=>game.classList.remove('glitch'),200);
+      showFloatText(parseFloat(ghostEl.style.left)+25,parseFloat(ghostEl.style.top)-10,MISS_PENALTY+' GLITCH','#f44');
+      removeTarget(t,false);
+      // Cooldown
+      setTimeout(()=>{cooldown=0;},MISS_COOLDOWN*1000);
+    }
+    updateHUD();
+    checkReload();
+  };
+
+  realEl.addEventListener('click',clickHandler(true));
+  ghostEl.addEventListener('click',clickHandler(false));
+
+  game.appendChild(realEl);game.appendChild(ghostEl);game.appendChild(ring);
+  targets.push(t);
+}
+
+function removeTarget(t,collected){
+  t.alive=false;
+  clearInterval(t.driftInterval);
+  clearTimeout(t.expireTimeout);
+  if(t.elReal)t.elReal.style.transition='transform .2s,opacity .2s';
+  if(t.elGhost)t.elGhost.style.transition='transform .2s,opacity .2s';
+  if(collected){
+    t.elReal.style.transform='scale(1.5)';t.elReal.style.opacity='0';
+    t.elGhost.style.opacity='0';
+  }else{
+    t.elReal.style.opacity='0';t.elGhost.style.opacity='0';
+  }
+  setTimeout(()=>{
+    if(t.elReal)t.elReal.remove();
+    if(t.elGhost)t.elGhost.remove();
+    if(t.ring)t.ring.remove();
+    targets=targets.filter(x=>x!==t);
+  },250);
+}
+
+function showFloatText(x,y,text,color){
+  const el=document.createElement('div');
+  el.className='hit-text';el.textContent=text;el.style.color=color;
+  el.style.left=x+'px';el.style.top=y+'px';
+  game.appendChild(el);
+  setTimeout(()=>el.remove(),900);
+}
+
+function checkReload(){
+  if(ammo<=0&&!reloading){
+    reloading=true;
+    updateHUD();
+    sfxReload();
+    setTimeout(()=>{
+      ammo=MAX_AMMO;reloading=false;
+      sfxReload();
+      updateHUD();
+    },RELOAD_TIME*1000);
+  }
+}
+
+// Click empty space = miss ammo
+game.addEventListener('click',(e)=>{
+  if(!running||cooldown>0||ammo<=0)return;
+  if(e.target===game||e.target.id==='hud'){
+    ammo--;
+    misses++;
+    combo=1;
+    sfxMiss();
+    showFloatText(e.clientX,e.clientY-20,'MISS','#f44');
+    updateHUD();
+    checkReload();
+  }
+});
+
+function startGame(){
+  AC.resume();
+  resetState();
+  running=true;
+  overlay.classList.add('hide');
+
+  // Flash countdown
+  const ct=document.getElementById('center-text');
+  ct.style.opacity='1';ct.textContent='3';
+  setTimeout(()=>{ct.textContent='2';},600);
+  setTimeout(()=>{ct.textContent='1';},1200);
+  setTimeout(()=>{
+    ct.textContent='AIM';
+    setTimeout(()=>{ct.style.opacity='0';},400);
+
+    // Spawn loop
+    spawnTimer=setInterval(()=>{
+      if(targets.filter(t=>t.alive).length<3)spawnTarget();
+    },800);
+
+    // Game timer
+    gameInterval=setInterval(()=>{
+      timeLeft=Math.max(0,timeLeft-0.1);
+      updateHUD();
+      if(timeLeft<=0)endGame();
+    },100);
+  },1800);
+}
+
+function endGame(){
+  running=false;
+  clearInterval(spawnTimer);clearInterval(gameInterval);
+  targets.forEach(t=>removeTarget(t,false));
+  sfxEnd();
+
+  const acc=hits+misses>0?Math.round(hits/(hits+misses)*100):0;
+  const rating=score>=3000?'QUANTUM MASTER':score>=2000?'WAVE RIDER':score>=1000?'OBSERVER':'PARTICLE';
+
+  overlay.querySelector('h1').textContent=rating;
+  overlay.querySelector('p').style.display='none';
+  overlay.querySelector('.sub').textContent='GAME OVER';
+  document.getElementById('final-score').style.display='block';
+  document.getElementById('final-score').textContent=score+' pts';
+  document.getElementById('final-stats').style.display='block';
+  document.getElementById('final-stats').innerHTML=
+    'Hits: '+hits+' | Misses: '+misses+' | Accuracy: '+acc+'%<br>'+
+    'Best combo: x'+COMBO_CAP.toFixed(2)+' | Time: '+GAME_TIME+'s';
+  startBtn.textContent='PLAY AGAIN';
+  overlay.classList.remove('hide');
+}
+
+startBtn.addEventListener('click',()=>{
+  overlay.querySelector('h1').textContent='QUANTUM AIM';
+  overlay.querySelector('p').style.display='block';
+  overlay.querySelector('.sub').textContent='a collaboration between Claude + Codex';
+  document.getElementById('final-score').style.display='none';
+  document.getElementById('final-stats').style.display='none';
+  startGame();
+});
+</script>
+</body>
+</html>
